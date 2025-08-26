@@ -2,7 +2,7 @@ import torch
 
 from collections import defaultdict
 from torch.utils.data import Dataset
-
+import numpy
 __all__ = ['LayerDAGNodeCountDataset',
            'LayerDAGNodePredDataset',
            'LayerDAGEdgePredDataset',
@@ -59,7 +59,7 @@ class LayerDAGBaseDataset(Dataset):
         self.input_n_end = torch.LongTensor(self.input_n_end)
 
         if self.conditional:
-            self.input_y = torch.tensor(self.input_y)
+            # self.input_y = torch.tensor(self.input_y) # comment if data is cd_syn
             self.input_g = torch.LongTensor(self.input_g)
 
 class LayerDAGNodeCountDataset(LayerDAGBaseDataset):
@@ -183,7 +183,8 @@ class LayerDAGNodeCountDataset(LayerDAGBaseDataset):
 
         if self.conditional:
             input_g = self.input_g[index]
-            input_y = self.input_y[input_g].item()
+            # input_y = self.input_y[input_g].item()
+            input_y = self.input_y[input_g].numpy() # for cd_syn
 
             return self.input_src[input_e_start:input_e_end],\
                 self.input_dst[input_e_start:input_e_end],\
@@ -355,7 +356,8 @@ class LayerDAGNodePredDataset(LayerDAGBaseDataset):
 
         if self.conditional:
             input_g = self.input_g[index]
-            input_y = self.input_y[input_g].item()
+            # input_y = self.input_y[input_g].item()
+            input_y = self.input_y[input_g].numpy() # for cd_syn
 
             return self.input_src[input_e_start:input_e_end],\
                 self.input_dst[input_e_start:input_e_end],\
@@ -546,8 +548,8 @@ class LayerDAGEdgePredDataset(LayerDAGBaseDataset):
 
         if self.conditional:
             input_g = self.input_g[index]
-            input_y = self.input_y[input_g].item()
-
+            # input_y = self.input_y[input_g].item()
+            input_y = self.input_y[input_g].numpy()
             return input_src, input_dst, noisy_src, noisy_dst, input_x_n,\
                 input_abs_level, input_rel_level, t, input_y, query_src, query_dst, label
         else:
