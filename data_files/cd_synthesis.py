@@ -48,13 +48,13 @@ def simulate_linear_gaussian(G, n_samples=1000, noise_scale=1.0, seed=None):
 
 
 def generate_split_datasets(
-    n_graphs=30,
+    n_graphs=100,
     min_nodes=5,
-    max_nodes=10,
-    n_samples=200,
+    max_nodes=5,
+    n_samples=100,
     edge_prob=0.3,
     out_dir="synthetic_dataset",
-    seed=0
+    seed=42
 ):
     """
     Generate multiple DAGs and observations, split it into train/val/test with 6/2/2
@@ -79,11 +79,14 @@ def generate_split_datasets(
             "x_n_list": [],
             "y_list": []
         }
-
-        for g_id in range(split_num):
+        g_id = 0  # Initial graph index
+        # for g_id in range(split_num):
+        while len(data_dict["src_list"]) < split_num:
             n_nodes = np.random.randint(min_nodes, max_nodes + 1)
             G, adj = generate_random_dag(n_nodes, edge_prob=edge_prob, seed=seed + g_id)
-
+            if G.number_of_edges() == 0:
+                # g_id += 1  # Try generating another graph
+                continue  # Skip to the next iteration if no edges are present
             data, W = simulate_linear_gaussian(G, n_samples=n_samples, noise_scale=1.0, seed=seed + g_id)
 
             # edge list
@@ -94,6 +97,13 @@ def generate_split_datasets(
             src = torch.tensor(src, dtype=torch.long)
             dst = torch.tensor(dst, dtype=torch.long)
 
+            # max_src = torch.max(src) if len(src) > 0 else None
+            # min_src = torch.min(src) if len(src) > 0 else None
+            # max_dst = torch.max(dst) if len(dst) > 0 else None
+            # min_dst = torch.min(dst) if len(dst) > 0 else None
+            #
+            # print("src max:", max_src, "src min:", min_src)
+            # print("dst max:", max_dst, "dst min:", min_dst)
             # set node feature with node id
             x_n = torch.arange(n_nodes, dtype=torch.long)
 
@@ -112,10 +122,23 @@ def generate_split_datasets(
 
 if __name__ == "__main__":
     generate_split_datasets(
-        n_graphs=1000,
+        n_graphs=100,
         min_nodes=5,
-        max_nodes=20,
+        max_nodes=5,
         n_samples=100,
         out_dir="./cd_syn_processed/",
         seed=42
     )
+    # import os
+    # import time
+    #
+    # out_dir = "./cd_syn_processed/"
+    # for split in ["train", "val", "test"]:
+    #     file_path = os.path.join(out_dir, f"{split}.pth")
+    #     if os.path.exists(file_path):
+    #         mtime = os.path.getmtime(file_path)
+    #         print(f"{file_path} last modified: {time.ctime(mtime)}")
+    #     else:
+    #         print(f"{file_path} does not exist")
+    # dataset = torch.load("./cd_syn_processed/train.pth")
+    # print(dataset)

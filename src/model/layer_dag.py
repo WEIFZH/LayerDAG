@@ -29,6 +29,31 @@ class SinusoidalPE(nn.Module):
             torch.cos(position * self.div_term)
         ], dim=-1)
 
+
+class SinusoidalPE_new(nn.Module):
+    def __init__(self, pe_size):
+        super().__init__()
+
+        self.pe_size = pe_size
+        if pe_size > 0:
+            self.div_term = torch.exp(torch.arange(0, pe_size, 2) *
+                                      (-math.log(10000.0) / pe_size))
+            self.div_term = nn.Parameter(self.div_term, requires_grad=False)
+
+    def forward(self, position):
+        if self.pe_size == 0:
+            return torch.zeros(len(position), 0).to(position.device)
+
+        # Expand position tensor to align with div_term dimensions
+        position = position.unsqueeze(-1)  # Makes position [5, 1]
+
+        # This aligns it for broadcasting with div_term making it [5, pe_size//2]
+        return torch.cat([
+            torch.sin(position * self.div_term),
+            torch.cos(position * self.div_term)
+        ], dim=-1)
+
+
 class BiMPNNLayer(nn.Module):
     def __init__(self, in_size, out_size):
         super().__init__()
@@ -77,6 +102,68 @@ class MultiEmbedding(nn.Module):
 
         return x_n_emb
 
+class SinusoidalPE_new(nn.Module):
+    def __init__(self, pe_size):
+        super().__init__()
+
+        self.pe_size = pe_size
+        if pe_size > 0:
+            self.div_term = torch.exp(torch.arange(0, pe_size, 2) *
+                                      (-math.log(10000.0) / pe_size))
+            self.div_term = nn.Parameter(self.div_term, requires_grad=False)
+
+    def forward(self, position):
+        if self.pe_size == 0:
+            return torch.zeros(len(position), 0).to(position.device)
+
+        # Expand position to be broadcasted properly
+        position = position.unsqueeze(-1)  # New shape [num_vars, 1] or [batch_size, sequence_len, num_vars, 1] after repeat
+
+        return torch.cat([
+            torch.sin(position * self.div_term),
+            torch.cos(position * self.div_term)
+        ], dim=-1)
+
+class ObservationEmbedding(nn.Module):
+    def __init__(self, pe_size, embedding_size):
+        super().__init__()
+        self.pe_size = pe_size
+        self.embedding_size = embedding_size
+
+        # Assume SinusoidalPE is implemented properly outside this class
+        self.positional_encoding = SinusoidalPE_new(pe_size)
+
+        # Neural Network Layers
+        self.conv = nn.Conv2d(in_channels=pe_size+1, out_channels=16,
+                              kernel_size=(1, 1))  # Adjust kernel size for compatibility
+        self.fc = nn.Linear(16 * 100 * 5, embedding_size)  # Adjust this according to flattened size after conv
+
+    def forward(self, x):
+        batch_size, num_samples, num_vars, _ = x.shape
+
+        # Generate positional encodings for each variable
+        positions = torch.arange(num_vars).to(x.device)
+        pe = self.positional_encoding(positions)
+
+        # Adjust `pe` to have the correct shape for concatenation
+        pe = pe.unsqueeze(0).unsqueeze(0)  # New shape: [1, 1, num_vars, pe_size]
+
+        # Repeat `pe` across the batch and sample dimension
+        pe = pe.repeat(batch_size, num_samples, 1, 1)
+
+        # Concatenate input with positional encoding
+        x = torch.cat((x, pe), dim=-1)
+
+        # Apply convolution layer
+        x = x.permute(0, 3, 1, 2)
+        x = self.conv(x)
+        x = x.reshape(batch_size, -1)
+
+        # Apply fully connected layer to get final embedding
+        embedding = self.fc(x)
+        return embedding
+
+
 class BiMPNNEncoder(nn.Module):
     def __init__(self,
                  num_x_n_cat,
@@ -96,7 +183,8 @@ class BiMPNNEncoder(nn.Module):
             self.level_emb = OneHotPE(pe_emb_size)
 
         self.x_n_emb = MultiEmbedding(num_x_n_cat, x_n_emb_size)
-        self.y_emb = SinusoidalPE(y_emb_size)
+        # self.y_emb = SinusoidalPE(y_emb_size)
+        self.y_emb_new = ObservationEmbedding(y_emb_size, y_emb_size)
 
         self.proj_input = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
@@ -132,7 +220,8 @@ class BiMPNNEncoder(nn.Module):
             h_n = torch.cat([h_n, node_pe], dim=-1)
 
         if y is not None:
-            h_y = self.y_emb(y)
+            # h_y = self.y_emb(y)
+            h_y = self.y_emb_new(y)
             h_n = torch.cat([h_n, h_y], dim=-1)
 
         h_n = self.proj_input(h_n)
@@ -382,6 +471,13 @@ class EdgePredModel(nn.Module):
         t : torch.tensor of shape (num_queries, 1)
         """
         h_n = self.graph_encoder(A, x_n, abs_level, rel_level, y=y)
+
+        print("h_n.shape:", h_n.shape)
+        print("query_dst.shape:", query_dst.shape)
+        print("query_dst max:", query_dst.max(), "min:", query_dst.min())
+        print("query_dst dtype:", query_dst.dtype)
+        if not query_dst.dtype == torch.int64:
+            raise TypeError("`query_dst` must be a type of torch.int64")
 
         h_e = torch.cat([
             self.t_emb(t),

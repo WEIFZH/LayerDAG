@@ -593,6 +593,7 @@ def collate_node_count(data):
         y_ = []
         for i in range(len(batch_x_n)):
             y_.extend([batch_y[i]] * len(batch_x_n[i]))
+        # print(batch_y[0].shape, batch_y[-1].shape)
         batch_y = torch.tensor(y_).unsqueeze(-1)
     else:
         batch_src, batch_dst, batch_x_n, batch_abs_level, batch_rel_level, batch_label = map(

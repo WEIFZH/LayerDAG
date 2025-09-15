@@ -60,6 +60,7 @@ def eval_node_count(device, val_loader, model):
     return total_nll / total_count, true_count / total_count
 
 def main_node_count(device, train_set, val_set, model, config, patience):
+
     train_loader = DataLoader(train_set,
                               shuffle=True,
                               collate_fn=collate_node_count,
@@ -348,6 +349,7 @@ def main_edge_pred(device, train_set, val_set, model, config, patience):
             batch_pred = model(batch_A, batch_x_n, batch_abs_level,
                                batch_rel_level, batch_t, batch_query_src,
                                batch_query_dst, batch_y)
+            print("Done L352 in train.py")
             loss = criterion(batch_pred, batch_label)
             optimizer.zero_grad()
             loss.backward()

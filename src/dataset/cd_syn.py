@@ -21,7 +21,8 @@ def to_dag_dataset(data_dict, num_categories):
     return dataset
 
 def get_cd_syn():
-    root_path = os.path.dirname(os.path.abspath(__file__))
+    root_path = '/raid/weifengzhang/LayerDAG/src/dataset'
+    # root_path = os.path.dirname(os.path.abspath(__file__))
     root_path = os.path.join(root_path, '../../data_files/cd_syn_processed')
 
     train_path = os.path.join(root_path, 'train.pth')
